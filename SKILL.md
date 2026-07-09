@@ -76,7 +76,14 @@ Discovery must not hang on any single list of vendors. A small vendor that a han
 These paths are component-agnostic: the category and category hints vary by component type, the mechanism does not. In every path, **always exclude the user's 12 vendor domains** using blocked_domains (Vendor Lists section). Per the site-data rule, a hit from any path is only a *candidate* until Step 3.
 
 **Path A — Parametric aggregator query (operate the filters; do NOT keyword-search).**
-On everything.rf — the best RF-specific parametric DB — and, where the component type fits, Mouser and Digi-Key parametric search, drive the site's *own parametric engine*: pick the component category for **this** query (Amplifiers, Mixers, Filters, LNAs, …), set the numeric filters from the current spec (whichever parameters the loaded module marks site-checkable), and **page through ALL result pages**. This is a *category-wide* sweep filtered by the current spec — never a search for a pre-named part; return every part the filters admit. A keyword web-search against these domains is **NOT** a substitute for their parametric engine: it reproduces the indexing weakness that caused the Aelius miss above.
+Path A runs against a **fixed, closed set of aggregators — and only these four**. It never visits an individual manufacturer's own site, and no other aggregator is added to this path:
+
+- **everything.rf** — the best RF-specific parametric DB
+- **Mouser**
+- **Digi-Key**
+- **Octopart**
+
+On each, drive the site's *own parametric/filter engine* (not a keyword box): pick the component category for **this** query (Amplifiers, Mixers, Filters, LNAs, …), set the numeric filters from the current spec (whichever parameters the loaded module marks site-checkable), and **page through ALL result pages**. This is a *category-wide* sweep filtered by the current spec — never a search for a pre-named part; return every part the filters admit. A keyword web-search against these domains is **NOT** a substitute for their parametric engine: it reproduces the indexing weakness that caused the Aelius miss above. Do not add any other aggregator to Path A — vendor discovery beyond these four happens in Paths B and C, not here.
 
 **Path B — Part-graph traversal (vendor DISCOVERY through parts, not names).**
 One good candidate is a thread to pull; its purpose is to surface **new vendors no list or directory contains** — found through parts, not names. From every confirmed or plausible candidate, run derived searches:
@@ -249,10 +256,9 @@ The cache is **self-growing** — no human maintains it:
 - Spacek Labs — spaceklabs.com (mm-wave)
 - Quantic brands (X-Microwave, PMI, Corry...) — catalog.xmicrowave.com
 
-**Parametric search engines / distributors (search these too, not just Google):**
+**Path A aggregators — the fixed, closed set (only these four; no other aggregators):**
 - everything.rf — best RF-specific parametric DB; also mirrors specs of poorly-indexed vendors
 - Mouser, Digi-Key — parametric filters for SMT/MMIC parts
-- RFMW — rfmw.com — RF-specialist distributor
-- Richardson Electronics — rellpower.com (Altum RF and others)
+- Octopart — cross-manufacturer part-search aggregator
 
 This cache is the accumulated institutional knowledge of the search — Paths A and B grow it automatically over time.
