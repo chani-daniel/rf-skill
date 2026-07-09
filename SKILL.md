@@ -5,7 +5,7 @@ description: Parametric search for RF/microwave components (amplifiers, mixers, 
 
 # RF Component Parametric Search
 
-Find RF/microwave components that **fully match** a multi-parameter spec, and prove it. The user is an RF procurement/engineering professional. This task normally takes her days of manually opening result after result; the value you add is speed **without sacrificing reliability**. A false "match" that fails on one parameter wastes her time and erodes trust — a verified "no match found" is a perfectly good answer.
+Find **every** RF/microwave component that **fully matches** a multi-parameter spec, and prove each one. The user is an RF procurement/engineering professional. This task normally takes her days of manually opening result after result; the value you add is running that sweep **completely and reliably** — faster, but never by doing less. Completeness and reliability are **both** required, and neither is traded for the other: a genuine match you **missed** and an unverified "match" you **reported** are equally worthless to her. She needs **all** the genuine matches and **only** genuine matches — bringing just a few good ones, or padding the list with unverified maybes, both fail the task. A false "match" that fails on one parameter erodes trust; a verified "no match found" is a perfectly good answer, but an unverified guess never is.
 
 ## Report language
 
@@ -76,6 +76,12 @@ Discovery must not hang on any single list of vendors. A small vendor that a han
 These paths are component-agnostic: the category and category hints vary by component type, the mechanism does not. In every path, **always exclude the user's 12 vendor domains** using blocked_domains (Vendor Lists section). Per the site-data rule, a hit from any path is only a *candidate* until Step 3.
 
 **Path A — Parametric aggregator query (operate the filters; do NOT keyword-search).**
+
+**The Path A search must be deep, precise, and reliable — this is the standard the entire path is held to, not a slogan:**
+- **Deep — full coverage:** page through **every** result page on all four aggregators; never stop at the first page or a partial view. Record how many pages/results each site returned. If a site paginates, lazy-loads, or caps results, exhaust it to the end — a result the filter admits but that sits on page 7 is missed only because you stopped early.
+- **Precise — filter accuracy:** operate each site's **own parametric engine**, and set **every** `site-checkable` parameter from the current spec — each in the right direction (min/max/range) and with its guard band. Never keyword-search these domains and never trust a snippet, a summary card, or a category label in place of the real filtered value.
+- **Reliable — failure transparency:** if any of the four sites is blocked, returns empty, times out, or lacks a filter the spec needs, **say so explicitly** in the coverage statement — never silently skip. A site that was not fully covered is named as not covered, with the reason; "0 results" and "could not reach the site" are different outcomes and must not be reported as the same thing.
+
 Path A runs against a **fixed, closed set of aggregators — and only these four**. It never visits an individual manufacturer's own site, and no other aggregator is added to this path:
 
 - **everything.rf** — the best RF-specific parametric DB
@@ -86,6 +92,12 @@ Path A runs against a **fixed, closed set of aggregators — and only these four
 On each, drive the site's *own parametric/filter engine* (not a keyword box): pick the component category for **this** query (Amplifiers, Mixers, Filters, LNAs, …), set the numeric filters from the current spec (whichever parameters the loaded module marks site-checkable), and **page through ALL result pages**. This is a *category-wide* sweep filtered by the current spec — never a search for a pre-named part; return every part the filters admit. A keyword web-search against these domains is **NOT** a substitute for their parametric engine: it reproduces the indexing weakness that caused the Aelius miss above. Do not add any other aggregator to Path A — vendor discovery beyond these four happens in Paths B and C, not here.
 
 **Path B — Part-graph traversal (vendor DISCOVERY through parts, not names).**
+
+**The Path B search must be deep, precise, and reliable — this is the standard the entire path is held to, not a slogan:**
+- **Deep — full traversal:** run **all four** derived-search types on **every** candidate (alternatives/equivalent/cross-reference; sibling parts in the family; the aggregator's "similar products" block; and a re-run in the found parts' vocabulary). Then keep looping wave after wave — each new vendor spawns its own derived searches — until a full wave surfaces no new vendor and no new plausible candidate, up to the 3-wave ceiling. Never stop after one search type, one candidate, or one wave.
+- **Precise — correct traversal:** correctly recognize when a competing part comes from a vendor **not yet seen this session**, and when it does, actually sweep that vendor's catalog for the category — don't just note the name. Follow sibling families to their neighbors, and match each found part's **real vocabulary** rather than forcing one fixed term.
+- **Reliable — honest coverage:** record **every** vendor the traversal discovers (these also grow the cache for Path C). If the loop stops at the 3-wave ceiling rather than because a wave ran dry, **say so explicitly** in the coverage statement — a ceiling-truncated traversal may have missed vendors and must never be presented as exhaustive.
+
 One good candidate is a thread to pull; its purpose is to surface **new vendors no list or directory contains** — found through parts, not names. From every confirmed or plausible candidate, run derived searches:
 
 - "alternatives to <part number>" / "<part number> equivalent" / "cross reference"
@@ -96,6 +108,12 @@ One good candidate is a thread to pull; its purpose is to surface **new vendors 
 Whenever a competing part comes from a **vendor not yet seen this session**, add that vendor and sweep its catalog for the category. **Loop until a wave surfaces no new vendors and no new plausible candidates, up to a ceiling of 3 waves** (or stop earlier once a wave adds nothing) — then continue; note the ceiling in the coverage statement if it was hit.
 
 **Path C — Cache sweep.**
+
+**The Path C search must be deep, precise, and reliable — this is the standard the entire path is held to, not a slogan:**
+- **Deep — full sweep:** check **every** vendor in the cache relevant to the component category — not a sample, not just the ones that look likely. For each, actually open its catalog (site search or catalog PDF) and filter for the category; a vendor skipped because it "probably has nothing" is exactly how a match is missed.
+- **Precise — correct access:** use the access method the cache records for each vendor (site search / catalog URL / PDF pattern). If a catalog PDF returns empty, do not accept that as "no parts" — it is probably scanned/image or bot-blocked, so fall back to the vendor's HTML pages or everything.rf's mirrored copy before concluding.
+- **Reliable — honest coverage:** log **every** vendor swept, **including** those that returned nothing (`checked/no candidates`) — never omit an empty vendor. A vendor whose catalog was blocked, empty, or unreachable is named with the reason, never silently skipped; "no matching parts" and "could not read the catalog" are different outcomes.
+
 Sweep the manufacturers in the vendor cache (Vendor Lists) relevant to the component category, checking their catalogs directly (site search or catalog PDF fetch). The cache is **not** the definition of which vendors exist — Paths A and B are; the cache only makes access to a *known* vendor cheap. If a catalog PDF returns empty, it is probably scanned/image or bot-blocked — say so and try the vendor's HTML pages or everything.rf's copy instead (per the site-data rule: never silently skip).
 
 **Grow the cache.** Whenever Path A or Path B surfaces a vendor not already in the cache, append it there with the access metadata learned (domain, catalog URL, parse/access notes, component categories). The cache grows automatically toward completeness for the categories searched; no human maintains it.
