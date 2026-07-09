@@ -20,6 +20,8 @@ Before Step 1, load both:
 
 Only parameters defined in the loaded component module may be used as filters. If no module exists for the requested component type, say so and ask how to proceed rather than improvising parameters.
 
+At **Step 4 (reporting)**, also load **`rf-excel-template.md`** — the fixed column schema for the output workbook.
+
 ## Core definitions — defined once, referenced throughout
 
 The rest of the skill refers back to this section instead of re-explaining these. Read it first.
@@ -141,17 +143,15 @@ Only candidates that survive re-verification are reported. **Exception — a ⚠
 
 **Chat**: one table of matches/borderlines (part number, vendor, band, each required parameter with min/typ noted, verdict), followed by a short "checked and rejected" list — part, failing parameter, actual value. Placement follows the Outcome categories: a ⚠️ access-blocked match belongs in the matches table with its "לא אומת — גישה ל-datasheet חסומה" flag (never in the rejected list); an access-blocked *unverifiable* part goes in the rejected list marked "לא נפסל על פרמטר — כדאי לשקול פנייה ליצרן". The rejected list is what convinces the user the search was real.
 
-**Excel** (use the xlsx skill; RTL Hebrew — follow the hebrew-office-documents skill) — **three sheets, all mandatory, even with one or zero matches**:
+**Excel** — build it to the fixed column schema in **`rf-excel-template.md`** (load that file now; use the xlsx skill, RTL Hebrew via the hebrew-office-documents skill). It defines the exact columns and order for all **three mandatory sheets** (התאמות / נבדקו ונפסלו / יומן כיסוי), which are produced identically every run — even when a sheet is header-only. The template fixes only the *layout*; the content rules below govern *what goes where*:
 
-1. **התאמות** — matches with all parameters and datasheet links, including ⚠️ `not datasheet-verified` rows (flag "לא אומת — גישה ל-datasheet חסומה"; aggregator link in place of the unreachable datasheet).
-2. **נבדקו ונפסלו** — every candidate that reached datasheet-check and failed, with the failing parameter and actual value. Also holds access-blocked *unverifiable* parts, labelled distinctly "לא נפסל על פרמטר — נדרש אימות ב-datasheet שלא היה נגיש; כדאי לשקול פנייה ליצרן" — not as a parameter failure.
-3. **יומן כיסוי** — a **paths table** (each of the three discovery paths with its outcome, e.g. "everything.rf parametric ✓ — N pages"; "part-graph traversal ✓ — M waves, K new vendors"; "cache sweep ✓") **plus a manufacturers table** (below). Also record the re-verification mode used (subagent / single-agent).
+- **התאמות** — ✅ matches and ⚠️ `not datasheet-verified` rows (the latter flagged "לא אומת — גישה ל-datasheet חסומה", with an aggregator link in place of the unreachable datasheet).
+- **נבדקו ונפסלו** — every candidate that reached datasheet-check and failed, plus access-blocked *unverifiable* parts labelled distinctly "לא נפסל על פרמטר — נדרש אימות ב-datasheet שלא היה נגיש; כדאי לשקול פנייה ליצרן" — not as a parameter failure.
+- **יומן כיסוי** — the manufacturers/sources table (plus the short A/B/C paths summary and the re-verification mode). This table must be:
+  - **Exhaustive** — one row per vendor touched at least once through any path, identical format for all. A vendor that returned nothing is listed `checked/no candidates` — **never omitted**; searched-and-empty is as important as a match.
+  - **Aggregators expanded, never collapsed** — when Path A drives a parametric engine, add **one row per vendor that engine surfaced**, each in the same format. A "everything.rf — 426 amps" single row is not acceptable (the aggregator may *additionally* keep one summary row in the paths summary). A vendor surfaced only inside an aggregator gets the outcome the aggregator data gives it.
 
-   The manufacturers table rules:
-   - **Exhaustive** — one row for every vendor touched at least once through any path, identical format for all, regardless of outcome. A vendor that returned nothing is listed `checked/no candidates` — **never omitted**. Proving what was searched is the point; searched-and-empty is as important as a match.
-   - **Aggregators expanded, never collapsed** — when Path A drives a parametric engine, add **one row per vendor that engine surfaced** behind the query, each in the same format. A "everything.rf — 426 amps" single row is not acceptable. The aggregator may *additionally* keep one summary row in the paths table. A vendor surfaced only inside an aggregator gets the outcome the aggregator data gives it (`checked/found X`, `rejected at site screen`, …).
-   - **"שאילתה שנשלחה" (query sent) column, mandatory** — the actual query sent to that source: the exact keyword/web-search string; for a parametric engine the filter set applied (e.g. "Amplifiers; 14–15 GHz; Gain≥20 dB; P1dB≥24 dBm"); for a catalog/PDF sweep the site-search term or catalog URL. Multiple queries → newline-separated in the cell or one row per query. A `not covered` source leaves it empty.
-   - Outcomes use the Core Outcome categories.
+Outcomes use the Core Outcome categories; the mandatory **"שאילתה שנשלחה"** column carries the real query per checked source (empty only for a `not covered` source).
 
 Sheets 2–3 are not decoration — they ARE the product. A report with one match and no rejection/coverage record is unverifiable: the user cannot tell a thorough search from a lucky hit, and will re-check everything manually. An empty sheet with just a header ("אף מועמד לא נפסל בשלב datasheet") is itself meaningful.
 
