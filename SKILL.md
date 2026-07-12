@@ -133,9 +133,9 @@ Safety rules (all generic in `rf-parameter-rules.md`): parameters the user did n
 
 ### Step 3 — Verify every candidate against primary sources
 
-A candidate becomes a match only after every required parameter is confirmed from the **manufacturer's datasheet or catalog table** (fetch the actual PDF/product page). Distributor summaries and snippets routinely show typ at one frequency point, omit conditions, or are wrong — see the site-data rule: a part is rejected here only against an actual datasheet value; site data may only have promoted it in.
+A candidate becomes a match only after every required parameter is confirmed against the **manufacturer's datasheet**. **Reading the datasheet is ALWAYS delegated to Gemini — the skill never opens, downloads-to-read, or decodes the PDF in its own context.** Whenever a candidate's datasheet must be read, hand it to the runner (see *Reading datasheets — always via Gemini* below); it returns the extracted values as JSON, and the agent judges the match from them. Distributor summaries and snippets routinely show typ at one frequency point, omit conditions, or are wrong — see the site-data rule: a part is rejected here only against an actual datasheet value (what Gemini extracted from the datasheet); site data may only have promoted it in.
 
-**Efficiency:** verify only the parameters still open. A site-checkable parameter that already cleared the spec **beyond its guard band** at Step 2.7 need not be re-read from the datasheet — focus the fetch on datasheet-only and borderline parameters.
+**Efficiency:** extract only the parameters still open. A site-checkable parameter that already cleared the spec **beyond its guard band** at Step 2.7 need not be re-extracted — pass the runner only the datasheet-only and borderline parameter names.
 
 For each parameter record: the actual value, whether it is min/typ/max, and any conditions (temperature, frequency point vs full band). Watch for:
 
@@ -148,21 +148,50 @@ Record the **margin** per parameter (e.g. OIP3 required ≥30, actual +37 → ma
 
 **If the datasheet cannot be fetched** (bot-block / 409 / 404 / not indexed): follow the Access-blocked datasheet logic in Core definitions.
 
-### Step 3.5 — Independent re-verification (the trust layer)
+### Step 3.5 — Independent re-verification (not run in the current Gemini-reads mode)
 
-Reading errors and confirmation bias are real. Before reporting, re-verify **✅/⚠️ candidates** from scratch. To save tokens, **prioritize the borderline ones** (small margin, typ-only, single-reading) — a parameter that cleared the spec by a wide margin is low-risk; a comfortably-clear ✅ with quoted values need not be re-fetched. First determine which mode is available — subagent capability depends on the *runtime environment*, not the model; do not assume it is present, and state the mode used in the coverage statement.
+Reading errors are real, and normally this step re-reads each ✅/⚠️ candidate's datasheet from scratch to catch them. That mechanism relied on two things this configuration removes — the agent (or a subagent) **re-reading the PDF**, and re-checking each value's **quoted string + location**. Both are disabled here (datasheet reading is always Gemini's, and no quote/location is captured), so **independent re-verification is not performed**: a reported match rests on Gemini's single extraction. Note this plainly in the coverage statement.
 
-**Preferred — subagent mode (whenever available):** spawn a verification agent that receives ONLY the requirements table and the candidate part numbers + datasheet URLs — **not** your conclusions, values, or verdicts — and independently extracts each parameter into its own table. Batch the candidates into **one** agent rather than one per part. Compare its table to yours; any discrepancy → fetch the datasheet again and resolve explicitly. An agent that never saw your answer cannot rubber-stamp it.
+**Still do the cheap checks that need no re-read:**
 
-**Fallback — hardened single-agent mode (when subagents are unavailable — likely common, including a strong model in plain chat):** a plain "read it again" is weak because you remember your conclusion. Make the re-read mechanical:
+- Apply the loaded module's **physics sanity checks** to Gemini's extracted values (e.g. OIP3 is normally above OP1dB; the NF floor; gain-per-stage). A violation is a red flag → re-extract that parameter via the runner before trusting it.
+- A ⚠️ **access-blocked** match (datasheet unreachable, site values clear of the guard band) is re-checked against the *site* values only — re-run the parametric query fresh and confirm each still clears the spec beyond its guard band — and stays ⚠️ `not datasheet-verified`.
 
-1. Do NOT look at your first table. Re-fetch each prioritized datasheet fresh and extract values into a **blank** second table, quoting for every value the exact datasheet string + location (page / table / row, e.g. *"Gain 22 dB typ, p.3 'Electrical Specifications' table, 8–12 GHz row"*). A value with no locatable quote is **unverifiable** → downgrade it.
-2. Only then diff against the first table. Any mismatch → open the datasheet a third time; quoted source wins over memory.
-3. Because this mode is self-checking, treat its confidence as lower: any ✅ resting on a single ambiguous reading becomes ⚠️, and the coverage statement notes single-agent re-verification.
+**To restore a real trust layer later** without breaking the rules, re-enable this step as a **second, independent Gemini extraction**: call the runner again on the same datasheet and diff the two JSON results; any discrepancy → re-extract and resolve, or downgrade to ⚠️.
 
-Sanity checks in **either** mode (violations = red flag, re-check the source): apply the loaded module's physics checks; a distributor page disagreeing with the datasheet loses (datasheet wins; note the discrepancy).
+### Reading datasheets — ALWAYS via Gemini (mandatory, never the skill itself)
 
-Only candidates that survive re-verification are reported. **Exception — a ⚠️ access-blocked match has no datasheet to re-fetch:** re-verify against the *site* values (re-run the parametric query fresh, confirm each value still clears the spec beyond its guard band) and keep it ⚠️ `not datasheet-verified`; name it in the coverage statement as a candidate that could not be datasheet-verified.
+**This is mandatory and has no fallback.** Whenever Step 3 needs to read or decode data from a datasheet PDF, the skill hands the whole job to Gemini — it **never** opens, downloads-to-read, or decodes the PDF in its own context. A datasheet URL points at a **PDF file** (binary), not readable text, so its bytes must be fetched and decoded; that entire job is Gemini's, via the runner. The tools live in `tools/`:
+
+- `config.py` — resolves the provider/model from `rf-llm.env` (Gemini by default; the single place to switch models).
+- `pdf.py` + `extractor.py` — decode the PDF **in memory** and send its text to Gemini, which returns values-only JSON.
+- `run_extract.py` — the single entry point that ties them together (fetch → decode in memory → Gemini → JSON). Nothing is written to disk.
+
+**Invocation — call the runner per candidate:**
+
+```
+python tools/run_extract.py --url "<datasheet URL>" --params "Gain,P1dB,NF,OIP3"
+```
+
+`--file <path>` reads a local PDF instead of a URL; `--requirements-file <reqs.json>` passes the parameter names from a file instead of `--params`. It prints **one JSON object**:
+
+```
+{ success, provider, model, parameters, error, sources }
+```
+
+`parameters` maps each requested name to `{unit, min, typ, max, value, condition}` or `null` (not stated on the datasheet). Exit code 0 = success, 1 = failure. A `success:false` is a fetch/read failure → apply the **Access-blocked datasheet logic** (Core definitions); never a silent match or reject.
+
+**First action:** confirm the config — `RF_LLM_PROVIDER`, `RF_LLM_MODEL`, and the provider key are set in `tools/rf-llm.env`, and the provider is registered in `extractor._get_runtime` (currently `mock` / `local` / `openai` / `gemini`). If the config is missing or broken, **say so and stop** — there is no "read the PDF yourself" fallback.
+
+**Gemini extracts; the skill judges.** The model returns values only — no verdict. The agent maps the JSON onto `rf-parameter-rules.md` + the component module, computes margins, and assigns ✅/⚠️/❌:
+
+- `min` / `typ` / `max` → for a `min` or `max` parameter, compare against the **guaranteed column** the direction needs (the `min` field for a `min` parameter, the `max` field for a `max` one); use `typ` **only** when the guaranteed column is `null`, then mark the verdict ⚠️ "typ only". For a `contains` parameter (frequency band, temperature range), the range comes back as `min`..`max` — check that range **fully contains** the requested one.
+- `null` (parameter not stated) → the datasheet-suitability rule applies: reject **"parameter not stated in datasheet"** — never guess a value the model returned as `null`.
+- `value` → **only** categorical/discrete parameters (MSL, package type, size string) and explicitly-enumerated discrete supply lists — numeric ranges live in `min`/`max`, not here.
+- `condition` → the operating point; for a band-dependent parameter, confirm the returned value covers the **requested band**. The extractor returns one object per parameter, so a multi-band part may need a focused re-extraction at the requested band.
+- Compute and **show** each margin and unit conversion (`2 W → +33.0 dBm; required ≥ +30 dBm; margin +3.0 dB`).
+
+State in the coverage statement that datasheet reading was done via Gemini, and which provider/model.
 
 ### Step 4 — Report: chat table + Excel
 
@@ -172,7 +201,7 @@ Only candidates that survive re-verification are reported. **Exception — a ⚠
 
 - **התאמות** — ✅ matches and ⚠️ `not datasheet-verified` rows (the latter flagged "לא אומת — גישה ל-datasheet חסומה", with an aggregator link in place of the unreachable datasheet).
 - **נבדקו ונפסלו** — every candidate that reached datasheet-check and failed, plus access-blocked *unverifiable* parts labelled distinctly "לא נפסל על פרמטר — נדרש אימות ב-datasheet שלא היה נגיש; כדאי לשקול פנייה ליצרן" — not as a parameter failure.
-- **יומן כיסוי** — the manufacturers/sources table (plus the short A/B/C paths summary and the re-verification mode). This table must be:
+- **יומן כיסוי** — the manufacturers/sources table (plus the short A/B/C paths summary and a note that datasheet reading was via Gemini, with no independent re-verification). This table must be:
   - **Exhaustive** — one row per vendor touched at least once through any path, identical format for all. A vendor that returned nothing is listed `checked/no candidates` — **never omitted**; searched-and-empty is as important as a match.
   - **Aggregators expanded, never collapsed** — when Path A drives a parametric engine, add **one row per vendor that engine surfaced**, each in the same format. A "everything.rf — 426 amps" single row is not acceptable (the aggregator may *additionally* keep one summary row in the paths summary). A vendor surfaced only inside an aggregator gets the outcome the aggregator data gives it.
 
@@ -182,14 +211,14 @@ Sheets 2–3 are not decoration — they ARE the product. A report with one matc
 
 **One-match warning**: 0–1 matches after a real sweep is possible but suspicious. Before accepting, run at least one more Path B wave and confirm all three paths (A/B/C) ran for this category — then report, saying explicitly in the coverage statement that this was done.
 
-**End with an honest coverage statement**: which of the three paths ran and their outcomes; which sources were fully swept vs only sampled; whether "no match" means "none exists" or "none found in sources covered"; and the re-verification mode. Coverage is bounded by what these sources contain — state plainly that a vendor absent from **every** path may still be missed; keep the residual gap visible, never disguised as a clean "no match". If nothing matches, show the nearest misses with their exact gaps (a 2dB gap is actionable — she may relax the spec).
+**End with an honest coverage statement**: which of the three paths ran and their outcomes; which sources were fully swept vs only sampled; whether "no match" means "none exists" or "none found in sources covered"; and that datasheet reading was delegated to Gemini (provider/model), with no independent re-verification run. Coverage is bounded by what these sources contain — state plainly that a vendor absent from **every** path may still be missed; keep the residual gap visible, never disguised as a clean "no match". If nothing matches, show the nearest misses with their exact gaps (a 2dB gap is actionable — she may relax the spec).
 
 ### Step 5 — Final audit before sending
 
 Run this checklist; fix anything that fails before reporting. (Each item points back to the rule it enforces.)
 
 - [ ] Every ✅/⚠️ part: every required parameter has an actual value, min/typ/max label, margin, and a working datasheet/catalog link — **or**, for a ⚠️ access-blocked match, site values with guard-band-clear margins, an aggregator link, and the "not verified" flag.
-- [ ] Every ✅/⚠️ part survived Step 3.5 re-verification; the mode (subagent / single-agent) is stated in the coverage statement.
+- [ ] The coverage statement states that datasheet reading was delegated to Gemini (provider/model) and that no independent re-verification was run (current Gemini-reads mode).
 - [ ] Every datasheet ❌ rests on an actual datasheet value — never on snippet evidence. The only non-datasheet entries in the rejected sheet are `rejected at site screen` and access-blocked *unverifiable* parts, each labelled per the Outcome categories.
 - [ ] `rejected at site screen` vs `not datasheet-verified` used exactly per the Outcome categories (not conflated).
 - [ ] Any inaccessible datasheet followed the Access-blocked logic: alternatives tried and logged, then classified as ⚠️ not-verified match (התאמות) or unverifiable reject (נבדקו ונפסלו). Never auto-dumped into rejected, never shown as ✅.
@@ -199,7 +228,7 @@ Run this checklist; fix anything that fails before reporting. (Each item points 
 - [ ] The coverage statement states plainly that coverage is bounded by these sources and a vendor absent from every path may still be missed.
 - [ ] Any vendor newly discovered by Path A/B was appended to the vendor cache with access metadata.
 - [ ] The Step 1 clarifications are reflected (e.g. a hard bound → no match exceeds it).
-- [ ] The module's sanity checks were applied; any violation re-checked against the source.
+- [ ] The module's sanity checks were applied to Gemini's extracted values; any violation was re-extracted via the runner.
 - [ ] Numbers in the chat table match the Excel exactly.
 - [ ] The Excel has all three sheets (התאמות / נבדקו ונפסלו / יומן כיסוי) — even if a sheet is header-only.
 - [ ] The יומן כיסוי manufacturers table: has the **"שאילתה שנשלחה"** column with the real query per checked source; is **exhaustive** (every touched vendor, including empty ones); and every Path-A aggregator is **expanded** into per-vendor rows.
@@ -209,8 +238,8 @@ Run this checklist; fix anything that fails before reporting. (Each item points 
 
 - Two-stage search — cheap wide search → **Step 2.7 site screen** → datasheet fetches for survivors only — is the main token saver. Datasheets open only for parts that pass the screen.
 - **Dedupe the candidate queue** (Step 2) before Step 2.7 so a vendor/part surfaced by multiple paths is processed once.
-- At Step 3, don't re-read from the datasheet any site-checkable parameter that already cleared the spec beyond its guard band; fetch for datasheet-only and borderline parameters.
-- At Step 3.5, prioritize re-verification on borderline candidates and batch subagent verification into one agent.
+- At Step 3, only ask the runner to extract the datasheet-only and borderline parameters — a site-checkable parameter already clear of its guard band at 2.7 needn't be re-extracted.
+- Step 3.5 independent re-verification is off in the current Gemini-reads mode (see Step 3.5), so no extra tokens are spent there.
 - If the user names a vendor missing from the cache, add it (Path C) for the session with whatever access metadata you learn — same auto-append rule Paths A/B use.
 
 ## Vendor Lists

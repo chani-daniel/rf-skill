@@ -58,4 +58,4 @@ Manufacturers / sources table columns, in order:
 | 4 | תוצאה | Outcome, using the Outcome categories in SKILL.md: `checked/no candidates` · `checked/found X` · `not covered` · `rejected at site screen` · `not datasheet-verified` · `datasheet inaccessible`. |
 | 5 | קישור | Link to the vendor/source page, catalog, or aggregator result used. |
 
-Above this table, include the short **paths summary** (three rows — one per discovery path A/B/C — with its run outcome, e.g. "everything.rf parametric ✓ — N pages"; "part-graph traversal ✓ — M waves, K new vendors"; "cache sweep ✓"). Also note the re-verification mode used (subagent / single-agent).
+Above this table, include the short **paths summary** (three rows — one per discovery path A/B/C — with its run outcome, e.g. "everything.rf parametric ✓ — N pages"; "part-graph traversal ✓ — M waves, K new vendors"; "cache sweep ✓"). Also note that datasheet reading was delegated to Gemini (provider/model), with no independent re-verification run.
